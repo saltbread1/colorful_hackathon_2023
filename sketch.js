@@ -2,7 +2,7 @@ class Particle
 {
     constructor(x0, radius, id)
     {
-        this.langevin = (v) => p5.Vector.random2D().mult(0.75).add(p5.Vector.mult(v, -0.1));
+        this.langevin = (v) => p5.Vector.random2D().mult(0.8).add(p5.Vector.mult(v, -0.1));
         this.vel = createVector();
         this.pos = x0;
         this.trails = [x0];
@@ -14,15 +14,27 @@ class Particle
 
     update()
     {
-        if (!this.isActive) { return; }
-        this.life--;
-        
-        const acc = this.langevin(this.vel);
-        this.vel.add(acc);
-        const x1 = this.pos;
-        const x2 = p5.Vector.add(x1, this.vel);
-        this.pos = x2;
-        this.trails.push(x2);
+        if (this.life <= 0)
+        {
+            if (this.trails.length)
+            {
+                this.pos = this.trails.pop();
+            }
+            else
+            {
+                this.isActive = false;
+            }
+        }
+        else
+        {
+            const acc = this.langevin(this.vel);
+            this.vel.add(acc);
+            const x1 = this.pos;
+            const x2 = p5.Vector.add(x1, this.vel);
+            this.pos = x2;
+            this.trails.push(x2);
+            this.life--;
+        }
     }
 
     display()
@@ -38,13 +50,12 @@ class ParticleManager
     {
         this.limitNum = limitNum;
         this.particles = [];
-        // [0, 1, ..., limitNum-1]
-        this.availableID = [...Array(limitNum)].map((_, i) => i);
+        this.availableID = [...Array(limitNum)].map((_, i) => i); // [0, 1, ..., limitNum-1]
     }
 
-    addParticle()
+    addParticles()
     {
-        while (this.availableID.length > 0)
+        while (this.availableID.length)
         {
             const radius = 4;
             const id = this.availableID.shift();
@@ -52,23 +63,24 @@ class ParticleManager
         }
     }
 
-    removeParticle()
+    removeParticles()
     {
         this.particles = this.particles.filter(p =>
         {
-            if (p.life <= 0)
+            if (!p.isActive)
             {
-                const id = p.id < this.limitNum ? p.id + this.limitNum : p.id - this.limitNum;
+                //const id = p.id < this.limitNum ? p.id + this.limitNum : p.id - this.limitNum;
+                const id = p.id;
                 this.availableID.push(id);
             }
-            return p.life > 0;
+            return p.isActive;
         });
     }
 
     update()
     {
-        this.removeParticle();
-        this.addParticle();
+        this.removeParticles();
+        this.addParticles();
         this.particles.forEach(p => p.update());
     }
 
@@ -131,24 +143,25 @@ class Closure
         let dir = createVector(1, 0);
         for (;;)
         {
-            if (pointsCopy.length == 0) { break; }
+            if (!pointsCopy.length) { break; }
     
-            const cacheCurr = curr;
             // get next vertex
-            curr = pointsCopy.reduce((p, q) =>
+            let next = pointsCopy.reduce((p, q) =>
             {
-                const rad1 = dir.angleBetween(p5.Vector.sub(p, cacheCurr));
-                const rad2 = dir.angleBetween(p5.Vector.sub(q, cacheCurr));
+                const rad1 = dir.angleBetween(p5.Vector.sub(p, curr));
+                const rad2 = dir.angleBetween(p5.Vector.sub(q, curr));
                 return rad1 - rad2 < 0 ? p : q;
             });
             // make a round: the first vertex is to be the end vertex
-            if (curr.equals(init)) { break; }
+            if (next.equals(init)) { break; }
+            ret.push(next);
             // remove the chosen points from array
-            pointsCopy = pointsCopy.filter(p => !p.equals(curr));
+            pointsCopy = pointsCopy.filter(p => !p.equals(next));
             // make the start point selectable
-            if (cacheCurr.equals(init)) { pointsCopy.push(init); }
-            dir = p5.Vector.sub(curr, cacheCurr);
-            ret.push(curr);
+            if (curr.equals(init)) { pointsCopy.push(init); }
+            // update variables
+            dir = p5.Vector.sub(next, curr);
+            curr = next;
         }
         
         return ret;
@@ -170,11 +183,11 @@ function draw()
     background(0);
     pm.update();
 
-    push();
-    noStroke();
-    fill(255);
-    pm.display();
-    pop();
+    // push();
+    // noStroke();
+    // fill(255);
+    // pm.display();
+    // pop();
 
     push();
     noFill();
@@ -182,4 +195,3 @@ function draw()
     closure.display();
     pop();
 }
-
