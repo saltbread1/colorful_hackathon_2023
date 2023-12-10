@@ -2,16 +2,16 @@ const palette = ["#ef2ef2", "#0b04d9", "#0cb1f2", "#05f240", "#d90404"];
 
 class Particle
 {
-    constructor(x0, radius, id)
+    constructor(id, x0, radius = 4)
     {
         this.langevin = (v) => p5.Vector.random2D().mult(0.8).add(p5.Vector.mult(v, -0.1));
         this.vel = createVector();
         this.pos = x0;
         this.trails = [x0];
-        this.life = int(random(128, 256));
+        this.life = int(random(32, 128));
         this.isActive = true;
-        this.radius = radius;
         this.id = id;
+        this.radius = radius;
     }
 
     update()
@@ -39,7 +39,7 @@ class Particle
         }
     }
 
-    display()
+    display(height)
     {
         const cx = this.pos;
         const c = color(palette[this.id % palette.length]);
@@ -48,7 +48,7 @@ class Particle
         fill(c);
         ellipse(cx.x, cx.y, 2*this.radius, 2*this.radius);
         stroke(c);
-        line(cx.x, cx.y, 0, cx.x, cx.y, 200);
+        line(cx.x, cx.y, 0, cx.x, cx.y, height);
         pop();
     }
 }
@@ -61,15 +61,15 @@ class ParticleManager
         this.limitNum = limitNum;
         this.particles = [];
         this.availableID = [...Array(limitNum)].map((_, i) => i); // [0, 1, ..., limitNum-1]
+        this.addParticles();
     }
 
     addParticles()
     {
         while (this.availableID.length)
         {
-            const radius = 4;
             const id = this.availableID.shift();
-            this.particles.push(new Particle(this.center, radius, id));
+            this.particles.push(new Particle(id, this.center));
         }
     }
 
@@ -87,16 +87,17 @@ class ParticleManager
         });
     }
 
-    update()
+    update(isReact = true)
     {
         this.removeParticles();
-        this.addParticles();
+        if (isReact) { /*this.addParticles();*/ }
+        else { this.particles.forEach(p => p.life = 0); }
         this.particles.forEach(p => p.update());
     }
 
-    display()
+    display(height)
     {
-        this.particles.forEach(p => p.display());
+        this.particles.forEach(p => p.display(height));
     }
 
     getPositions()
@@ -104,6 +105,11 @@ class ParticleManager
         const points = [];
         this.particles.forEach(p => points.push(p.pos));
         return points;
+    }
+
+    isLiving()
+    {
+        return this.particles.length;
     }
 }
 
@@ -115,74 +121,18 @@ class Closure
         this.c = color(palette[floor(random(palette.length))]);
     }
 
-    display()
+    display(height)
     {
         const positions = this.pm.getPositions();
-        // while (positions.length >= 3)
-        // {
-        //     const vertices = this.convexHull(positions);
-        //     positions = positions.filter(v => !vertices.includes(v));
-        //     push();
-        //     stroke("#ffffff");
-        //     fill("#000000");
-        //     beginShape();
-        //     vertices.forEach(v => vertex(v.x, v.y));
-        //     endShape(CLOSE);
-        //     pop();
-        // }
         const vertices = this.convexHull(positions);
-        //const c = color(palette[vertices.length % palette.length]);
+        //this.c = color(palette[vertices.length % palette.length]);
         push();
-        //stroke("#ffffff");
         noStroke();
         fill(this.c);
-        // let n = vertices.length;
-        // for (let i = 0; i < n; i++)
-        // {
-        //     beginShape();
-        //     let v1 = vertices[i];
-        //     let v2 = vertices[(i+1)%n];
-        //     vertex(v1.x, v1.y, 0);
-        //     vertex(v2.x, v2.y, 0);
-        //     vertex(v2.x, v2.y, 50);
-        //     vertex(v1.x, v1.y, 50);
-        //     endShape(CLOSE);
-        // }
         beginShape();
-        vertices.forEach(v => vertex(v.x, v.y, 200));
+        vertices.forEach(v => vertex(v.x, v.y, height));
         endShape(CLOSE);
         pop();
-        // let length = 0;
-        // let n = vertices.length;
-        // for (let i = 0; i < n; i++)
-        // {
-        //     let v1 = vertices[i];
-        //     let v2 = vertices[(i+1)%n];
-        //     length += p5.Vector.dist(v1, v2);
-        // }
-        // push();
-        // colorMode(HSB, 1, 1, 1);
-        // stroke(noise(length*0.001, frameCount*0.003), 1, 1);
-        // noFill();
-        // stroke("#ffffff");
-        // fill("#000000");
-        // beginShape();
-        // vertices.forEach(v => vertex(v.x, v.y));
-        // endShape(CLOSE);
-        // pop();
-
-        // let n = vertices.length;
-        // for (let i = 0; i < n; i++)
-        // {
-        //     let v1 = vertices[(i+n-1)%n];
-        //     let v2 = vertices[i];
-        //     let v3 = vertices[(i+1)%n];
-        //     let e1 = p5.Vector.sub(v1, v2);
-        //     let e2 = p5.Vector.sub(v3, v2);
-        //     let rad = e1.angleBetween(e2);
-        //     let a = sq(cos(rad/2)) * 64;
-        //     ellipse(v2.x, v2.y, a, a);
-        // }
     }
 
     convexHull(points)
@@ -249,59 +199,93 @@ class Polygon
     {
         this.pm = new ParticleManager(center, 16);
         this.closure = new Closure(this.pm);
+        this.height = lerp(64, 256, sqrt(random()));
     }
 
-    update()
+    update(isReact = true)
     {
-        this.pm.update();
+        this.pm.update(isReact);
     }
 
     display()
     {
-        this.closure.display();
-        this.pm.display();
+        this.closure.display(this.height);
+        this.pm.display(this.height);
     }
-
-    
 }
 
-class MyCamera
+class PolygonGenerator
 {
-    constructor()
+    constructor(radius, limitNum)
     {
+        this.reactRadius = radius;
+        this.limitNum = limitNum;
+        this.polygons = [];
         this.cam = createCamera();
-        this.eye = createVector(0, 250, 50);
+        this.center = createVector(0, -100, 100);
         this.updateCamera();
     }
 
     updateCamera()
     {
-        const eyeToCenter = createVector(0, -250, 50);
-        const center = p5.Vector.add(this.eye, eyeToCenter);
-        this.cam.camera(this.eye.x, this.eye.y, this.eye.z,
-            center.x, center.y, center.z, 0, -1, 0);
+        const center2eye = createVector(0, 250, -50);
+        const eye = p5.Vector.add(this.center, center2eye);
+        this.cam.camera(eye.x, eye.y, eye.z,
+            this.center.x, this.center.y, this.center.z,
+            0, -1, 0);
     }
 
-    move(v)
+    moveCamera()
     {
-        this.eye.add(v);
+        const vel = createVector(0, 1.5, 0);
+        this.center.add(vel);
         this.updateCamera();
+    }
+
+    addPolygon()
+    {
+        if (this.polygons.length < this.limitNum)
+        {
+            const c = p5.Vector.random3D().mult(this.reactRadius).add(this.center);
+            c.z = 0;
+            this.polygons.push(new Polygon(c));
+        }
+    }
+
+    removePolygons()
+    {
+        this.polygons = this.polygons.filter(p => p.pm.isLiving());
+    }
+
+    updatePolygons()
+    {
+        this.removePolygons();
+        this.addPolygon();
+        const isInRange = (c) => p5.Vector.sub(c, createVector(this.center.x, this.center.y)).magSq() < sq(this.reactRadius);
+        this.polygons.forEach(p => p.update(isInRange(p.pm.center)));
+    }
+
+    displayPolygons()
+    {
+        this.polygons.forEach(p => p.display());
+        // noFill();
+        // ellipse(this.center.x, this.center.y, 2*this.reactRadius, 2*this.reactRadius);
     }
 }
 
-let cam;
-const polygons = [];
+let pg;
 
 function setup()
 {
     createCanvas(w=windowWidth, h=w*9/16, WEBGL);
-    cam = new MyCamera();
-    polygons.push(new Polygon(createVector()));
+    pg = new PolygonGenerator(h, 16);
 }
 
 function draw()
 {
     background("#ececec");
-    polygons.forEach(p => p.update());
-    polygons.forEach(p => p.display());
+
+    pg.moveCamera();
+    pg.updatePolygons();
+    pg.displayPolygons();
 }
