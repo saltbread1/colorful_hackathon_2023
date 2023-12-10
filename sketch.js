@@ -1,15 +1,17 @@
+const palette = ["#ef2ef2", "#0b04d9", "#0cb1f2", "#05f240", "#d90404"];
+
 class Particle
 {
-    constructor(x0, radius, id)
+    constructor(id, x0, radius = 4)
     {
-        this.langevin = (v) => p5.Vector.random2D().mult(0.8).add(p5.Vector.mult(v, -0.1));
+        this.langevin = (v) => p5.Vector.random2D().mult(0.4).add(p5.Vector.mult(v, -0.05));
         this.vel = createVector();
         this.pos = x0;
         this.trails = [x0];
-        this.life = int(random(128, 256));
+        this.life = floor(random(64, 128));
         this.isActive = true;
-        this.radius = radius;
         this.id = id;
+        this.radius = radius;
     }
 
     update()
@@ -37,29 +39,38 @@ class Particle
         }
     }
 
-    display()
+    display(height)
     {
         const cx = this.pos;
+        const c = color(palette[this.id % palette.length]);
+        c.setAlpha(180);
+        push();
+        noFill();
+        stroke(c);
         ellipse(cx.x, cx.y, 2*this.radius, 2*this.radius);
+        stroke(c);
+        line(cx.x, cx.y, 0, cx.x, cx.y, height);
+        pop();
     }
 }
 
 class ParticleManager
 {
-    constructor(limitNum)
+    constructor(center, limitNum)
     {
+        this.center = center;
         this.limitNum = limitNum;
         this.particles = [];
         this.availableID = [...Array(limitNum)].map((_, i) => i); // [0, 1, ..., limitNum-1]
+        this.addParticles();
     }
 
     addParticles()
     {
         while (this.availableID.length)
         {
-            const radius = 4;
             const id = this.availableID.shift();
-            this.particles.push(new Particle(createVector(width/2, height/2), radius, id));
+            this.particles.push(new Particle(id, this.center));
         }
     }
 
@@ -69,7 +80,6 @@ class ParticleManager
         {
             if (!p.isActive)
             {
-                //const id = p.id < this.limitNum ? p.id + this.limitNum : p.id - this.limitNum;
                 const id = p.id;
                 this.availableID.push(id);
             }
@@ -77,16 +87,17 @@ class ParticleManager
         });
     }
 
-    update()
+    update(isReact = true)
     {
         this.removeParticles();
-        this.addParticles();
+        if (isReact) { /*this.addParticles();*/ }
+        else { this.particles.forEach(p => p.life = 0); }
         this.particles.forEach(p => p.update());
     }
 
-    display()
+    display(height)
     {
-        this.particles.forEach(p => p.display());
+        this.particles.forEach(p => p.display(height));
     }
 
     getPositions()
@@ -95,6 +106,11 @@ class ParticleManager
         this.particles.forEach(p => points.push(p.pos));
         return points;
     }
+
+    isLiving()
+    {
+        return this.particles.length;
+    }
 }
 
 class Closure
@@ -102,14 +118,20 @@ class Closure
     constructor(pm)
     {
         this.pm = pm;
+        this.col = color(palette[floor(random(palette.length))]);
     }
 
-    display()
+    display(height)
     {
-        const vertices = this.convexHull(pm.getPositions());
+        const positions = this.pm.getPositions();
+        const vertices = this.convexHull(positions);
+        push();
+        noStroke();
+        fill(this.col);
         beginShape();
-        vertices.forEach(v => vertex(v.x, v.y));
+        vertices.forEach(v => vertex(v.x, v.y, height));
         endShape(CLOSE);
+        pop();
     }
 
     convexHull(points)
@@ -126,6 +148,8 @@ class Closure
             }
             pointsCopy.push(p)
         });
+
+        if (!pointsCopy.length) { return ret; }
     
         // get the minimum y-coodinate point
         const init = pointsCopy.reduce((p, q) =>
@@ -168,30 +192,194 @@ class Closure
     }
 }
 
-let pm;
-let closure;
+class Polygon
+{
+    constructor(center)
+    {
+        this.pm = new ParticleManager(center, floor(random(8, 16)));
+        this.closure = new Closure(this.pm);
+        this.height = lerp(height*0.2, height*1.1, random(random()));
+    }
+
+    update(isReact = true)
+    {
+        this.pm.update(isReact);
+    }
+
+    display()
+    {
+        this.closure.display(this.height);
+        this.pm.display(this.height);
+    }
+}
+
+class PolygonGenerator
+{
+    constructor(radius, polygonLimit = 16, cubeLimit = 256)
+    {
+        this.reactRadius = radius;
+        this.polygonLimit = polygonLimit;
+        this.cubeLimit = cubeLimit;
+        this.polygons = [];
+        this.cubes = [];
+        this.cam = createCamera();
+        this.center = createVector(0, -height*0.2, height*0.2);
+        this.updateCamera();
+    }
+
+    updateCamera()
+    {
+        const center2eye = createVector(0, height*0.8, -height*0.05);
+        const eye = p5.Vector.add(this.center, center2eye);
+        this.cam.camera(eye.x, eye.y, eye.z,
+            this.center.x, this.center.y, this.center.z,
+            0, -1, 0);
+    }
+
+    moveCamera()
+    {
+        const vel = createVector(0, 1, 0);
+        this.center.add(vel);
+        this.updateCamera();
+    }
+
+    addPolygon()
+    {
+        if (this.polygons.length < this.polygonLimit)
+        {
+            const c = p5.Vector.random3D().mult(this.reactRadius).add(this.center);
+            c.z = 0;
+            this.polygons.push(new Polygon(c));
+        }
+    }
+
+    removePolygons()
+    {
+        this.polygons = this.polygons.filter(p => p.pm.isLiving());
+    }
+
+    updatePolygons()
+    {
+        this.removePolygons();
+        this.addPolygon();
+        this.polygons.forEach(p => p.update(this.isInRange(p.pm.center)));
+    }
+
+    displayPolygons()
+    {
+        this.polygons.forEach(p => p.display());
+    }
+
+    addCubes()
+    {
+        while (this.cubes.length < this.cubeLimit)
+        {
+            const c = p5.Vector.random3D().mult(this.reactRadius).add(this.center);
+            c.z = 0;
+            const rot = createVector(random(TAU), random(TAU), random(TAU));
+            const r = lerp(8, 32, sq(random()));
+            this.cubes.push(new Cube(c, rot, r));
+        }
+    }
+
+    removeCubes()
+    {
+        this.cubes = this.cubes.filter(c => c.isLiving());
+    }
+
+    updateCubes()
+    {
+        this.removeCubes();
+        this.addCubes();
+        this.cubes.forEach(c => c.update(this.isInRange(c.center)));
+    }
+
+    displayCubes()
+    {
+        this.cubes.forEach(c => c.display());
+    }
+
+    isInRange(c)
+    {
+        const d = p5.Vector.sub(c, createVector(this.center.x, this.center.y)).magSq();
+        const r = sq(this.reactRadius);
+        return d < r;
+    }
+}
+
+class Cube
+{
+    constructor(center, rot, radius)
+    {
+        this.center = center;
+        this.rot = rot;
+        this.radius = radius;
+        this.maxRadius = radius;
+        this.time = 0;
+        this.fcol = color(random(255), 160);
+        this.scol = color(palette[floor(random(palette.length))]);
+    }
+
+    display()
+    {
+        push();
+        translate(this.center.x, this.center.y, this.center.z);
+        rotateX(this.rot.x);
+        rotateY(this.rot.y);
+        rotateZ(this.rot.z);
+        fill(this.fcol);
+        stroke(this.scol);
+        strokeWeight(0.5);
+        box(this.radius);
+        pop();
+    }
+
+    update(isSwell)
+    {
+        if (isSwell)
+        {
+            this.time = min(this.time + 0.02, 1);
+            this.radius = this.easeOutElastic(this.time) * this.maxRadius;
+        }
+        else
+        {
+            this.time = max(this.time - 0.02, 0);
+            this.radius = this.easeOutElastic(this.time) * this.maxRadius;
+        }
+    }
+
+    isLiving()
+    {
+        return this.radius;
+    }
+
+    easeOutElastic(x)
+    {
+        const c4 = (2 * Math.PI) / 3;
+        
+        return x === 0
+            ? 0
+            : x === 1
+            ? 1
+            : Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * c4) + 1;
+    }
+}
+
+let pg;
 
 function setup()
 {
-    createCanvas(w=windowWidth, h=w*9/16);
-    pm = new ParticleManager(16);
-    closure = new Closure(pm);
+    createCanvas(w=windowWidth, h=min(windowHeight, w*9/16), WEBGL);
+    pg = new PolygonGenerator(w*0.64, n=max(w*0.02, 8), n*32);
 }
-   
+
 function draw()
 {
-    background(0);
-    pm.update();
+    background("#001c30");
 
-    // push();
-    // noStroke();
-    // fill(255);
-    // pm.display();
-    // pop();
-
-    push();
-    noFill();
-    stroke(255);
-    closure.display();
-    pop();
+    pg.moveCamera();
+    pg.updatePolygons();
+    pg.displayPolygons();
+    pg.updateCubes();
+    pg.displayCubes();
 }
