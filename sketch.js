@@ -8,7 +8,7 @@ class Particle
         this.vel = createVector();
         this.pos = x0;
         this.trails = [x0];
-        this.life = floor(random(32, 128));
+        this.life = floor(random(64, 128));
         this.isActive = true;
         this.id = id;
         this.radius = radius;
@@ -43,11 +43,10 @@ class Particle
     {
         const cx = this.pos;
         const c = color(palette[this.id % palette.length]);
-        c.setAlpha(100);
-        //const c = color("#e0e0e0");
+        c.setAlpha(180);
         push();
-        noStroke();
-        fill(c);
+        noFill();
+        stroke(c);
         ellipse(cx.x, cx.y, 2*this.radius, 2*this.radius);
         stroke(c);
         line(cx.x, cx.y, 0, cx.x, cx.y, height);
@@ -81,7 +80,6 @@ class ParticleManager
         {
             if (!p.isActive)
             {
-                //const id = p.id < this.limitNum ? p.id + this.limitNum : p.id - this.limitNum;
                 const id = p.id;
                 this.availableID.push(id);
             }
@@ -121,7 +119,7 @@ class Closure
     {
         this.pm = pm;
         this.col = color(palette[floor(random(palette.length))]);
-        this.col.setAlpha(160);
+        //this.col.setAlpha(160);
     }
 
     display(height)
@@ -202,7 +200,7 @@ class Polygon
     {
         this.pm = new ParticleManager(center, floor(random(8, 16)));
         this.closure = new Closure(this.pm);
-        this.height = lerp(64, 256, random(random()));
+        this.height = lerp(height*0.2, height*1.1, random(random()));
     }
 
     update(isReact = true)
@@ -227,13 +225,13 @@ class PolygonGenerator
         this.polygons = [];
         this.cubes = [];
         this.cam = createCamera();
-        this.center = createVector(0, -100, 100);
+        this.center = createVector(0, -height*0.2, height*0.2);
         this.updateCamera();
     }
 
     updateCamera()
     {
-        const center2eye = createVector(0, 250, -50);
+        const center2eye = createVector(0, height*0.8, -height*0.05);
         const eye = p5.Vector.add(this.center, center2eye);
         this.cam.camera(eye.x, eye.y, eye.z,
             this.center.x, this.center.y, this.center.z,
@@ -373,13 +371,13 @@ let pg;
 
 function setup()
 {
-    createCanvas(w=windowWidth, h=w*9/16, WEBGL);
-    pg = new PolygonGenerator(h);
+    createCanvas(w=windowWidth, h=min(windowHeight, w*9/16), WEBGL);
+    pg = new PolygonGenerator(w*0.64, n=max(w*0.02, 8), n*32);
 }
 
 function draw()
 {
-    background("#c0c0c0");
+    background("#001c30");
 
     pg.moveCamera();
     pg.updatePolygons();
