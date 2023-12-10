@@ -4,7 +4,7 @@ class Particle
 {
     constructor(id, x0, radius = 4)
     {
-        this.langevin = (v) => p5.Vector.random2D().mult(0.8).add(p5.Vector.mult(v, -0.1));
+        this.langevin = (v) => p5.Vector.random2D().mult(0.4).add(p5.Vector.mult(v, -0.05));
         this.vel = createVector();
         this.pos = x0;
         this.trails = [x0];
@@ -43,6 +43,8 @@ class Particle
     {
         const cx = this.pos;
         const c = color(palette[this.id % palette.length]);
+        c.setAlpha(100);
+        //const c = color("#e0e0e0");
         push();
         noStroke();
         fill(c);
@@ -119,6 +121,7 @@ class Closure
     {
         this.pm = pm;
         this.col = color(palette[floor(random(palette.length))]);
+        this.col.setAlpha(160);
     }
 
     display(height)
@@ -197,9 +200,9 @@ class Polygon
 {
     constructor(center)
     {
-        this.pm = new ParticleManager(center, 16);
+        this.pm = new ParticleManager(center, floor(random(8, 16)));
         this.closure = new Closure(this.pm);
-        this.height = lerp(64, 256, sqrt(random()));
+        this.height = lerp(64, 256, random(random()));
     }
 
     update(isReact = true)
@@ -216,7 +219,7 @@ class Polygon
 
 class PolygonGenerator
 {
-    constructor(radius, polygonLimit = 16, cubeLimit = 128)
+    constructor(radius, polygonLimit = 16, cubeLimit = 256)
     {
         this.reactRadius = radius;
         this.polygonLimit = polygonLimit;
@@ -263,7 +266,6 @@ class PolygonGenerator
     {
         this.removePolygons();
         this.addPolygon();
-        //const isInRange = (c) => p5.Vector.sub(c, createVector(this.center.x, this.center.y)).magSq() < sq(this.reactRadius);
         this.polygons.forEach(p => p.update(this.isInRange(p.pm.center)));
     }
 
@@ -318,7 +320,8 @@ class Cube
         this.radius = radius;
         this.maxRadius = radius;
         this.time = 0;
-        this.col = random(255);
+        this.fcol = color(random(255), 160);
+        this.scol = color(palette[floor(random(palette.length))]);
     }
 
     display()
@@ -328,8 +331,9 @@ class Cube
         rotateX(this.rot.x);
         rotateY(this.rot.y);
         rotateZ(this.rot.z);
-        stroke(this.col);
-        fill(255 - this.col);
+        fill(this.fcol);
+        stroke(this.scol);
+        strokeWeight(0.5);
         box(this.radius);
         pop();
     }
@@ -375,7 +379,7 @@ function setup()
 
 function draw()
 {
-    background("#ececec");
+    background("#c0c0c0");
 
     pg.moveCamera();
     pg.updatePolygons();
