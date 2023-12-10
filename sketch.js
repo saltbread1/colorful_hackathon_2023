@@ -119,14 +119,12 @@ class Closure
     {
         this.pm = pm;
         this.col = color(palette[floor(random(palette.length))]);
-        //this.col.setAlpha(160);
     }
 
     display(height)
     {
         const positions = this.pm.getPositions();
         const vertices = this.convexHull(positions);
-        //this.c = color(palette[vertices.length % palette.length]);
         push();
         noStroke();
         fill(this.col);
