@@ -8,7 +8,7 @@ class Particle
         this.vel = createVector();
         this.pos = x0;
         this.trails = [x0];
-        this.life = int(random(32, 128));
+        this.life = floor(random(32, 128));
         this.isActive = true;
         this.id = id;
         this.radius = radius;
@@ -118,7 +118,7 @@ class Closure
     constructor(pm)
     {
         this.pm = pm;
-        this.c = color(palette[floor(random(palette.length))]);
+        this.col = color(palette[floor(random(palette.length))]);
     }
 
     display(height)
@@ -128,7 +128,7 @@ class Closure
         //this.c = color(palette[vertices.length % palette.length]);
         push();
         noStroke();
-        fill(this.c);
+        fill(this.col);
         beginShape();
         vertices.forEach(v => vertex(v.x, v.y, height));
         endShape(CLOSE);
@@ -216,11 +216,13 @@ class Polygon
 
 class PolygonGenerator
 {
-    constructor(radius, limitNum)
+    constructor(radius, polygonLimit = 16, cubeLimit = 128)
     {
         this.reactRadius = radius;
-        this.limitNum = limitNum;
+        this.polygonLimit = polygonLimit;
+        this.cubeLimit = cubeLimit;
         this.polygons = [];
+        this.cubes = [];
         this.cam = createCamera();
         this.center = createVector(0, -100, 100);
         this.updateCamera();
@@ -237,14 +239,14 @@ class PolygonGenerator
 
     moveCamera()
     {
-        const vel = createVector(0, 1.5, 0);
+        const vel = createVector(0, 1, 0);
         this.center.add(vel);
         this.updateCamera();
     }
 
     addPolygon()
     {
-        if (this.polygons.length < this.limitNum)
+        if (this.polygons.length < this.polygonLimit)
         {
             const c = p5.Vector.random3D().mult(this.reactRadius).add(this.center);
             c.z = 0;
@@ -261,15 +263,105 @@ class PolygonGenerator
     {
         this.removePolygons();
         this.addPolygon();
-        const isInRange = (c) => p5.Vector.sub(c, createVector(this.center.x, this.center.y)).magSq() < sq(this.reactRadius);
-        this.polygons.forEach(p => p.update(isInRange(p.pm.center)));
+        //const isInRange = (c) => p5.Vector.sub(c, createVector(this.center.x, this.center.y)).magSq() < sq(this.reactRadius);
+        this.polygons.forEach(p => p.update(this.isInRange(p.pm.center)));
     }
 
     displayPolygons()
     {
         this.polygons.forEach(p => p.display());
-        // noFill();
-        // ellipse(this.center.x, this.center.y, 2*this.reactRadius, 2*this.reactRadius);
+    }
+
+    addCubes()
+    {
+        while (this.cubes.length < this.cubeLimit)
+        {
+            const c = p5.Vector.random3D().mult(this.reactRadius).add(this.center);
+            c.z = 0;
+            const rot = createVector(random(TAU), random(TAU), random(TAU));
+            const r = lerp(8, 32, sq(random()));
+            this.cubes.push(new Cube(c, rot, r));
+        }
+    }
+
+    removeCubes()
+    {
+        this.cubes = this.cubes.filter(c => c.isLiving());
+    }
+
+    updateCubes()
+    {
+        this.removeCubes();
+        this.addCubes();
+        this.cubes.forEach(c => c.update(this.isInRange(c.center)));
+    }
+
+    displayCubes()
+    {
+        this.cubes.forEach(c => c.display());
+    }
+
+    isInRange(c)
+    {
+        const d = p5.Vector.sub(c, createVector(this.center.x, this.center.y)).magSq();
+        const r = sq(this.reactRadius);
+        return d < r;
+    }
+}
+
+class Cube
+{
+    constructor(center, rot, radius)
+    {
+        this.center = center;
+        this.rot = rot;
+        this.radius = radius;
+        this.maxRadius = radius;
+        this.time = 0;
+        this.col = random(255);
+    }
+
+    display()
+    {
+        push();
+        translate(this.center.x, this.center.y, this.center.z);
+        rotateX(this.rot.x);
+        rotateY(this.rot.y);
+        rotateZ(this.rot.z);
+        stroke(this.col);
+        fill(255 - this.col);
+        box(this.radius);
+        pop();
+    }
+
+    update(isSwell)
+    {
+        if (isSwell)
+        {
+            this.time = min(this.time + 0.02, 1);
+            this.radius = this.easeOutElastic(this.time) * this.maxRadius;
+        }
+        else
+        {
+            this.time = max(this.time - 0.02, 0);
+            this.radius = this.easeOutElastic(this.time) * this.maxRadius;
+        }
+    }
+
+    isLiving()
+    {
+        return this.radius;
+    }
+
+    easeOutElastic(x)
+    {
+        const c4 = (2 * Math.PI) / 3;
+        
+        return x === 0
+            ? 0
+            : x === 1
+            ? 1
+            : Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * c4) + 1;
     }
 }
 
@@ -278,7 +370,7 @@ let pg;
 function setup()
 {
     createCanvas(w=windowWidth, h=w*9/16, WEBGL);
-    pg = new PolygonGenerator(h, 16);
+    pg = new PolygonGenerator(h);
 }
 
 function draw()
@@ -288,4 +380,6 @@ function draw()
     pg.moveCamera();
     pg.updatePolygons();
     pg.displayPolygons();
+    pg.updateCubes();
+    pg.displayCubes();
 }
